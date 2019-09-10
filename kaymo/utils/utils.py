@@ -1,21 +1,39 @@
 import os
-from tqdm import tqdm
 
 import librosa
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
 
 from kaymo import ROOTDIR
-import pandas as pd
 
 KAYMODB_PATH = f'{ROOTDIR}/datasets/kaymodb/'
 
 
-def create_kaymodb_csv():
-    df = {'dataset': [], 'filename': [], 'emotion': [], 'length': [], 'path': []}
+def extract_audio_feature(path, mono=True, sr=16000):
+    y, sr = librosa.load(path, mono=mono, sr=sr)
+    chroma_stft = librosa.feature.chroma_stft(y=y, sr=sr)
+    rmse = librosa.feature.rms(y=y)
+    spec_cent = librosa.feature.spectral_centroid(y=y, sr=sr)
+    spec_bw = librosa.feature.spectral_bandwidth(y=y, sr=sr)
+    rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)
+    zcr = librosa.feature.zero_crossing_rate(y)
+    mfcc = librosa.feature.mfcc(y=y, sr=sr)
+    features = f'{np.mean(chroma_stft)} {np.mean(rmse)} {np.mean(spec_cent)} ' \
+        f'{np.mean(spec_bw)} {np.mean(rolloff)} {np.mean(zcr)}'
+    for e in mfcc:
+        features += f' {np.mean(e)}'
+    return features
+
+
+def create_kaymodb_csv(mono=True, sr=16000):
+    df = {'dataset': [], 'filename': [], 'emotion': [], 'length': [], 'path': [], 'features': []}
     emotions = os.listdir(KAYMODB_PATH)
+    emotions.remove('.DS_Store')
     print(emotions)
     for emotion in emotions:
         wav_files = os.listdir(f'{KAYMODB_PATH}{emotion}')
-        print('Emotion: ', emotion)
+        print(f'\nEmotion: {emotion}\n')
         for wav in tqdm(wav_files):
             wav_info = wav.split('_')
             dataset, emotion, path = wav_info[1], wav_info[2], f'{KAYMODB_PATH}{emotion}/{wav}'
@@ -23,13 +41,20 @@ def create_kaymodb_csv():
             df['dataset'].append(dataset)
             df['filename'].append(wav)
             df['emotion'].append(emotion)
-            y, sr = librosa.load(f'{KAYMODB_PATH}{emotion}/{wav}')
+            y, sr = librosa.load(f'{KAYMODB_PATH}{emotion}/{wav}', mono=mono, sr=sr)
             df['length'].append(y.shape[0] / sr)
             df['path'].append(path)
+            features = extract_audio_feature(path).split()
+            df['features'].append(features)
 
     df = pd.DataFrame(df)
-    print(df.head())
     df = df.sample(frac=1).reset_index(drop=True)
+    features = df['features'].apply(pd.Series)  # expand df.features into its own dataframe
+    features = features.rename(columns=lambda x: 'features_' + str(x))  # rename each variable is tags
+    # print(features)
+    df = pd.concat([df[:], features[:]], axis=1)  # join the features dataframe back to the original dataframe
+    df.drop(columns=['features'], axis=1, inplace=True)
+    print(df.head())
     df.to_csv(f'{ROOTDIR}/kaymodb.csv', index=None, header=True)
 
 
