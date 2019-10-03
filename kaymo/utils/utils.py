@@ -12,6 +12,7 @@ KAYMODB_PATH = f'{ROOTDIR}/datasets/kaymodb/'
 
 def extract_audio_feature(path, mono=True, sr=16000):
     y, sr = librosa.load(path, mono=mono, sr=sr)
+    length = y.shape[0] / sr
     chroma_stft = librosa.feature.chroma_stft(y=y, sr=sr)
     rmse = librosa.feature.rms(y=y)
     spec_cent = librosa.feature.spectral_centroid(y=y, sr=sr)
@@ -23,7 +24,7 @@ def extract_audio_feature(path, mono=True, sr=16000):
         f'{np.mean(spec_bw)} {np.mean(rolloff)} {np.mean(zcr)}'
     for e in mfcc:
         features += f' {np.mean(e)}'
-    return features
+    return features, length
 
 
 def create_kaymodb_csv(mono=True, sr=16000):
@@ -41,11 +42,11 @@ def create_kaymodb_csv(mono=True, sr=16000):
             df['dataset'].append(dataset)
             df['filename'].append(wav)
             df['emotion'].append(emotion)
-            y, sr = librosa.load(f'{KAYMODB_PATH}{emotion}/{wav}', mono=mono, sr=sr)
-            df['length'].append(y.shape[0] / sr)
             df['path'].append(path)
-            features = extract_audio_feature(path).split()
-            df['features'].append(features)
+            features, length = extract_audio_feature(path)
+            df['length'].append(length)
+            df['features'].append(features.split())
+
 
     df = pd.DataFrame(df)
     df = df.sample(frac=1).reset_index(drop=True)
