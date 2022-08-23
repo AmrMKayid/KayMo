@@ -49,7 +49,7 @@ mkl-fft==1.0.14
 mkl-random==1.0.2
 mkl-service==2.0.2
 murmurhash==1.0.2
-nbconvert==5.6.0
+nbconvert==6.5.1
 nbformat==4.4.0
 notebook==6.0.0
 numba==0.45.1
